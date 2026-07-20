@@ -1,0 +1,15 @@
+{
+  "name": "quiz-server",
+  "version": "1.0.0",
+  "description": "Offline-capable quiz server — runs on your phone via Termux, test-takers connect over the network",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
