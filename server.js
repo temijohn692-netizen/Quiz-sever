@@ -1,7 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const questions = require('./quiz-data');
+const { questions, specialQuestion } = require('./quiz-data');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,9 +10,15 @@ const RESULTS_FILE = path.join(__dirname, 'results.json');
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+function getQuestionSet(special) {
+  return special ? [...questions, specialQuestion] : questions;
+}
+
 // Send the question list WITHOUT the correct answers (so test-takers can't cheat by viewing source)
 app.get('/api/questions', (req, res) => {
-  const safeQuestions = questions.map((q, i) => ({
+  const special = req.query.special === '1';
+  const set = getQuestionSet(special);
+  const safeQuestions = set.map((q, i) => ({
     index: i,
     text: q.text,
     options: q.options
@@ -22,14 +28,16 @@ app.get('/api/questions', (req, res) => {
 
 // Receive a submitted quiz, score it server-side, save + log the result
 app.post('/api/submit', (req, res) => {
-  const { name, answers } = req.body;
+  const { name, answers, special } = req.body;
 
   if (!Array.isArray(answers)) {
     return res.status(400).json({ error: 'answers must be an array' });
   }
 
+  const set = getQuestionSet(!!special);
+
   let score = 0;
-  const breakdown = questions.map((q, i) => {
+  const breakdown = set.map((q, i) => {
     const given = answers[i];
     const correct = given === q.correctIndex;
     if (correct) score++;
@@ -43,8 +51,9 @@ app.post('/api/submit', (req, res) => {
 
   const result = {
     name: name || 'Anonymous',
+    special: !!special,
     score,
-    total: questions.length,
+    total: set.length,
     breakdown,
     submittedAt: new Date().toISOString()
   };
@@ -83,7 +92,10 @@ app.get('/results', (req, res) => {
 
   const rows = allResults.slice().reverse().map(r => `
     <div style="background:#1c222c;border:1px solid #2a3040;border-radius:12px;padding:14px 18px;margin-bottom:12px;">
-      <div style="font-weight:600;font-size:16px;">${r.name}</div>
+      <div style="font-weight:600;font-size:16px;">
+        ${r.name}
+        ${r.special ? '<span style="background:#a06bff;color:#1a0f2e;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;margin-left:8px;vertical-align:middle;">SPECIAL</span>' : ''}
+      </div>
       <div style="color:#ffb454;font-size:14px;">${r.score} / ${r.total}</div>
       <div style="color:#6b7280;font-size:12px;">${new Date(r.submittedAt).toLocaleString()}</div>
     </div>
