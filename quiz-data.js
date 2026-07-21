@@ -1,6 +1,6 @@
 // Edit this file to change the quiz questions.
 // Each question needs: text, an array of 4 options, and the index (0-3) of the correct one.
-module.exports = [
+const questions = [
   {
     text: "What is the capital of Nigeria?",
     options: ["Lagos", "Abuja", "Kano", "Ibadan"],
@@ -27,3 +27,12 @@ module.exports = [
     correctIndex: 1
   }
 ];
+
+// Only shown to names that start with "." — a hidden bonus question.
+const specialQuestion = {
+  text: "What's the hidden bonus question worth?",
+  options: ["Nothing, just for fun", "1 point", "5 points", "A prize"],
+  correctIndex: 0
+};
+
+module.exports = { questions, specialQuestion };
