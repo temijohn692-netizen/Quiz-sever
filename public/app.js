@@ -1,20 +1,27 @@
 let questions = [];
 let selectedAnswers = {};
+let isSpecial = false;
+let quizStarted = false;
 
 const questionsContainer = document.getElementById('questionsContainer');
 const submitBtn = document.getElementById('submitBtn');
 const progressText = document.getElementById('progressText');
 const nameInput = document.getElementById('nameInput');
+const startBtn = document.getElementById('startBtn');
 const setupScreen = document.getElementById('setupScreen');
 const resultScreen = document.getElementById('resultScreen');
 const resultScoreText = document.getElementById('resultScoreText');
 
+submitBtn.style.display = 'none';
+
 async function loadQuestions() {
+  progressText.textContent = 'Loading questions...';
   try {
-    const res = await fetch('/api/questions');
+    const res = await fetch('/api/questions' + (isSpecial ? '?special=1' : ''));
     questions = await res.json();
     renderQuestions();
     progressText.textContent = `${questions.length} questions`;
+    submitBtn.style.display = 'block';
   } catch (err) {
     progressText.textContent = 'Could not load questions. Check your connection to the server.';
   }
@@ -53,8 +60,22 @@ function updateSubmitState() {
   submitBtn.disabled = answeredCount < questions.length;
 }
 
+startBtn.addEventListener('click', () => {
+  if (quizStarted) return;
+  const rawName = nameInput.value.trim();
+  isSpecial = rawName.startsWith('.');
+  quizStarted = true;
+
+  nameInput.disabled = true;
+  startBtn.disabled = true;
+  startBtn.textContent = 'Started';
+
+  loadQuestions();
+});
+
 submitBtn.addEventListener('click', async () => {
-  const name = nameInput.value.trim() || 'Anonymous';
+  const rawName = nameInput.value.trim();
+  const name = rawName.replace(/^\./, '') || 'Anonymous';
   const answers = questions.map(q => selectedAnswers[q.index]);
 
   submitBtn.disabled = true;
@@ -64,7 +85,7 @@ submitBtn.addEventListener('click', async () => {
     const res = await fetch('/api/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, answers })
+      body: JSON.stringify({ name, answers, special: isSpecial })
     });
     const data = await res.json();
 
@@ -83,5 +104,3 @@ submitBtn.addEventListener('click', async () => {
     alert('Something went wrong showing your result: ' + err.message);
   }
 });
-
-loadQuestions();
