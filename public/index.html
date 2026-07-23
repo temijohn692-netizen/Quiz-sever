@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Quiz</title>
+<title>Portal</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap');
 * { box-sizing: border-box; }
@@ -19,10 +18,33 @@ h1 { font-family: 'Fraunces', serif; font-size: 24px; margin: 0 0 6px; }
 
 input[type="text"] {
   width: 100%; background: #1c222c; border: 1px solid #2a3040; border-radius: 12px;
-  padding: 12px 14px; color: #e8e6e1; font-size: 15px; margin-bottom: 20px;
+  padding: 12px 14px; color: #e8e6e1; font-size: 15px; margin-bottom: 14px;
+}
+
+.btn {
+  width: 100%; background: #ffb454; color: #1a1408; border: none; border-radius: 12px;
+  padding: 14px; font-weight: 700; font-size: 16px; cursor: pointer; margin-bottom: 8px;
+}
+.btn:disabled { opacity: 0.4; }
+.btn-outline {
+  width: 100%; background: transparent; color: #e8e6e1; border: 1px solid #2a3040; border-radius: 12px;
+  padding: 12px; font-weight: 600; font-size: 14px; cursor: pointer; margin-bottom: 8px;
+}
+
+.course-option {
+  background: #171c26; border: 1px solid #232937; border-radius: 14px; padding: 16px;
+  margin-bottom: 12px; cursor: pointer;
+}
+.course-option .code { font-weight: 700; font-size: 15px; color: #ffb454; }
+.course-option .title { font-size: 13px; color: #9aa2b1; margin-top: 4px; }
+
+.timer-bar {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+  font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #ffb454;
 }
 
 .q-block { background: #171c26; border: 1px solid #232937; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+#quizScreen .q-block { user-select: none; -webkit-user-select: none; }
 .q-text { font-size: 15px; margin-bottom: 12px; font-weight: 500; }
 .option {
   display: block; background: #1c222c; border: 1px solid #2a3040; border-radius: 10px;
@@ -30,11 +52,21 @@ input[type="text"] {
 }
 .option.selected { background: #ffb454; color: #1a1408; border-color: #ffb454; font-weight: 600; }
 
-button#submitBtn {
-  width: 100%; background: #ffb454; color: #1a1408; border: none; border-radius: 12px;
-  padding: 14px; font-weight: 700; font-size: 16px; cursor: pointer; margin-top: 8px;
+.nav-row { display: flex; gap: 8px; margin-top: 4px; margin-bottom: 12px; }
+.nav-row button { flex: 1; }
+
+.q-jump { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.q-jump-btn {
+  width: 34px; height: 34px; border-radius: 8px; border: 1px solid #2a3040; background: #1c222c;
+  color: #9aa2b1; font-size: 12px; cursor: pointer;
 }
-button#submitBtn:disabled { opacity: 0.4; }
+.q-jump-btn.answered { background: #4ecdc4; color: #08302e; border-color: #4ecdc4; font-weight: 700; }
+.q-jump-btn.current { outline: 2px solid #ffb454; }
+
+textarea {
+  width: 100%; resize: vertical; min-height: 90px; background: #1c222c; border: 1px solid #2a3040; border-radius: 12px;
+  padding: 12px 14px; color: #e8e6e1; font-family: 'Inter', sans-serif; font-size: 14px; margin-bottom: 14px;
+}
 
 .result-box {
   text-align: center; padding: 30px 20px; background: #171c26; border: 1px solid #232937; border-radius: 16px;
@@ -46,22 +78,41 @@ button#submitBtn:disabled { opacity: 0.4; }
 <body>
   <div class="page">
     <div class="card">
-      <h1>Quiz</h1>
+      <h1>Portal</h1>
       <div class="sub" id="progressText">Enter your name to begin</div>
 
-      <div id="setupScreen">
+      <!-- Step 1: Name entry -->
+      <div id="nameScreen">
         <input type="text" id="nameInput" placeholder="Your name">
-        <button id="startBtn" style="width:100%;background:#ffb454;color:#1a1408;border:none;border-radius:12px;padding:12px;font-weight:700;font-size:15px;cursor:pointer;margin-bottom:20px;">Start</button>
+        <button id="startBtn" class="btn">Continue</button>
       </div>
 
-      <div id="questionsContainer"></div>
+      <!-- Step 2: Course selection (regular names only) -->
+      <div id="courseScreen" class="hidden"></div>
 
-      <button id="submitBtn" disabled>Submit</button>
+      <!-- Step 3a: Quiz questions -->
+      <div id="quizScreen" class="hidden">
+        <div class="timer-bar">
+          <span id="timerText">10:00</span>
+          <span id="qCounter"></span>
+        </div>
+        <div class="q-jump" id="qJump"></div>
+        <div id="questionsContainer"></div>
+        <div class="nav-row">
+          <button id="prevBtn" class="btn-outline">Back</button>
+          <button id="nextBtn" class="btn-outline">Next</button>
+        </div>
+        <button id="submitBtn" class="btn" disabled>Submit</button>
+      </div>
 
+      <!-- Step 3b: Survey (dot names only) -->
+      <div id="surveyScreen" class="hidden"></div>
+
+      <!-- Final result -->
       <div id="resultScreen" class="result-box hidden">
-        <div>Score</div>
+        <div id="resultLabel">Score</div>
         <div class="result-score" id="resultScoreText"></div>
-        <div style="color:#6b7280;font-size:13px;">Your result has been sent.</div>
+        <div style="color:#6b7280;font-size:13px;" id="resultSub">Your result has been sent.</div>
       </div>
     </div>
   </div>
