@@ -1,11 +1,26 @@
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
 const { courses, surveyStatements, surveyScale, surveyOpenQuestion } = require('./quiz-data');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const RESULTS_FILE = path.join(__dirname, 'results.json');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS results (
+      id SERIAL PRIMARY KEY,
+      data JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+}
+initDb().catch(err => console.error('DB init failed:', err));
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -41,7 +56,7 @@ app.get('/api/questions', (req, res) => {
 });
 
 // Regular quiz submission
-app.post('/api/submit', (req, res) => {
+app.post('/api/submit', async (req, res) => {
   const { name, courseKey, answers, tabSwitches, pasteAttempts, timeTakenSeconds } = req.body;
   const course = courses[courseKey];
 
@@ -76,17 +91,21 @@ app.post('/api/submit', (req, res) => {
     submittedAt: new Date().toISOString()
   };
 
-  saveResult(result);
-  console.log('\n=== New quiz submission ===');
-  console.log(`Name: ${result.name} | Course: ${result.courseCode}`);
-  console.log(`Score: ${result.score} / ${result.total} | Tab switches: ${result.tabSwitches}`);
-  console.log('============================\n');
-
-  res.json({ score: result.score, total: result.total });
+  try {
+    await saveResult(result);
+    console.log('\n=== New quiz submission ===');
+    console.log(`Name: ${result.name} | Course: ${result.courseCode}`);
+    console.log(`Score: ${result.score} / ${result.total} | Tab switches: ${result.tabSwitches}`);
+    console.log('============================\n');
+    res.json({ score: result.score, total: result.total });
+  } catch (err) {
+    console.error('Failed to save result:', err);
+    res.status(500).json({ error: 'Could not save result' });
+  }
 });
 
 // Survey submission (dot-prefixed names)
-app.post('/api/submit-survey', (req, res) => {
+app.post('/api/submit-survey', async (req, res) => {
   const { name, ratings, openAnswer } = req.body;
 
   if (!Array.isArray(ratings) || ratings.length !== surveyStatements.length) {
@@ -108,31 +127,38 @@ app.post('/api/submit-survey', (req, res) => {
     submittedAt: new Date().toISOString()
   };
 
-  saveResult(result);
-  console.log('\n=== New survey submission ===');
-  console.log(`Name: ${result.name} | Score: ${percent}%`);
-  console.log('==============================\n');
-
-  res.json({ percent });
+  try {
+    await saveResult(result);
+    console.log('\n=== New survey submission ===');
+    console.log(`Name: ${result.name} | Score: ${percent}%`);
+    console.log('==============================\n');
+    res.json({ percent });
+  } catch (err) {
+    console.error('Failed to save survey result:', err);
+    res.status(500).json({ error: 'Could not save result' });
+  }
 });
 
-function saveResult(result) {
-  let all = [];
-  if (fs.existsSync(RESULTS_FILE)) {
-    try { all = JSON.parse(fs.readFileSync(RESULTS_FILE, 'utf8')); } catch (e) { all = []; }
-  }
-  all.push(result);
-  fs.writeFileSync(RESULTS_FILE, JSON.stringify(all, null, 2));
+async function saveResult(result) {
+  await pool.query('INSERT INTO results (data) VALUES ($1)', [JSON.stringify(result)]);
+}
+
+async function getAllResults() {
+  const { rows } = await pool.query('SELECT data FROM results ORDER BY created_at DESC');
+  return rows.map(r => r.data);
 }
 
 // Results page (yours to check privately)
-app.get('/results', (req, res) => {
+app.get('/results', async (req, res) => {
   let all = [];
-  if (fs.existsSync(RESULTS_FILE)) {
-    try { all = JSON.parse(fs.readFileSync(RESULTS_FILE, 'utf8')); } catch (e) { all = []; }
+  try {
+    all = await getAllResults();
+  } catch (err) {
+    console.error('Failed to load results:', err);
+    return res.status(500).send('Could not load results.');
   }
 
-  const rows = all.slice().reverse().map(r => {
+  const rows = all.map(r => {
     if (r.type === 'survey') {
       return `
         <div style="background:#1c222c;border:1px solid #2a3040;border-radius:12px;padding:14px 18px;margin-bottom:12px;">
